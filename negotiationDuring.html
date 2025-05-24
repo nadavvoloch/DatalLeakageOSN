@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Product Selector</title>
+<style>
+    body {
+        font-family: Arial, sans-serif; 
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: #f8f8f8;
+    }
+    .container {
+        border: 6px double gray;
+        padding: 20px;
+        width: 80%;
+        background-color: white;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+    .headline {
+        font-size: 2.5em;
+        font-weight: bold;
+        margin-bottom: 20px;
+        color: #333;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    ul {
+        list-style-type: none;
+        padding: 0;
+    }
+    li {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    li span {
+        flex: 1; 
+    }
+    button, input[type="radio"] {
+        margin-left: 10px;
+        padding: 5px 10px;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+    }
+    button:hover, input[type="radio"]:hover {
+        background-color: #45a049;
+    }
+    .button-link {
+        display: inline-block;
+        background-color: #008CBA;
+        color: white;
+        padding: 10px 15px;
+        text-decoration: none;
+        border-radius: 5px;
+        transition: background-color 0.3s;
+    }
+    .button-link:hover {
+        background-color: #007B9E;
+    }
+    .button-agree, .button-disagree {
+        display: inline-block;
+        padding: 10px 15px;
+        color: black;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+        width: 150px;
+    }
+    .button-agree {
+        background-color: #00FF00;
+    }
+    .button-agree:hover {
+        background-color: #77FF00;
+    }
+    .button-disagree {
+        background-color: #FF0000;
+    }
+    .button-disagree:hover {
+        background-color: #FF0077;
+    }
+    #summary {
+        display: none;
+        margin-top: 20px;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9em;
+    }
+    table, th, td {
+        border: 1px solid #ddd;
+    }
+    th, td {
+        padding: 8px;
+        text-align: left;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+</style>
+<script>
+    let personalItem = '';
+    let socialPlatform = '';
+    let sell_item = '';
+    let step = 0;  // Start at 0 to move to the first product
+    const userData = [];
+    let negotiationPhase = false; // Track if we're in negotiation phase
+
+    // Array to store product data
+    const products = [
+        {
+            image: "images/pencil.png",
+            name: "Pencil",
+            price: "$2.00",
+            discount: "$0.2"
+        },
+        {
+            image: "images/chocolate.jpg",
+            name: "Chocolate",
+            price: "$15.00",
+            discount: "$1.5"
+        },
+        {
+            image: "images/sextoy.jpg",
+            name: "Adult toy",
+            price: "$35.00",
+            discount: "$3.5"
+        },
+        {
+            image: "images/lingerie.jpg",
+            name: "Lingerie",
+            price: "$55.00",
+            discount: "$5.5"
+        },
+        {
+            image: "images/smartphone.jpg",
+            name: "Smartphone",
+            price: "$450.00",
+            discount: "$45"
+        }
+    ];
+
+    async function agree() {
+        let price_accepted = 10;
+        let b_upper = price_accepted;
+        let b_lower = 0;
+        let maybe_accepted = price_accepted;
+        let R = Math.floor(Math.random() * 4) + 1;
+
+        for (let i = 1; i <= R; i++) {
+            maybe_accepted = price_accepted - (10 / R);
+            if (maybe_accepted < 0) maybe_accepted = 0;
+            let userAgrees = await promptNegotiation(maybe_accepted);
+            if (userAgrees) {
+                b_upper = price_accepted;
+                price_accepted = maybe_accepted;
+                if (i === R) {
+                    let avg = Math.round((b_lower + b_upper) / 2);
+                    return { b_lower: Math.round(b_lower), b_upper: Math.round(b_upper), avg: avg };
+                }
+            } else {
+                b_lower = maybe_accepted;
+                let avg = Math.round((b_lower + b_upper) / 2);
+                return { b_lower: Math.round(b_lower), b_upper: Math.round(b_upper), avg: avg };
+            }
+        }
+    }
+
+    async function disagree() {
+        let b_lower = 10;
+        let b_upper = Number.MAX_SAFE_INTEGER;
+        let price_accepted = b_lower;
+        let maybe_accepted = b_lower;
+        let R = Math.floor(Math.random() * 4) + 1;
+
+        for (let i = 1; i <= R; i++) {
+            maybe_accepted = b_lower + (10 / R);
+            let userAgrees = await promptNegotiation(maybe_accepted);
+            if (userAgrees) {
+                price_accepted = maybe_accepted;
+                b_upper = maybe_accepted;
+                let avg = Math.round((b_lower + b_upper) / 2);
+                return { b_lower: Math.round(b_lower), b_upper: Math.round(b_upper), avg: avg };
+            } else {
+                b_lower = maybe_accepted;
+                if (i === R) {
+                    b_upper = 100;
+                    let avg = Math.round((b_lower + b_upper) / 2);
+                    return { b_lower: Math.round(b_lower), b_upper: Math.round(b_upper), avg: avg };
+                }
+            }
+        }
+    }
+
+    function promptNegotiation(percentageValue) {
+        return new Promise((resolve) => {
+            const discountOfferElement = document.getElementById("discount-offer");
+            const agreeButton1 = document.getElementById("agree-button1");
+            const disagreeButton1 = document.getElementById("disagree-button1");
+
+            // Round the percentage value to the nearest whole number
+            const roundedPercentageValue = Math.round(percentageValue);
+
+            // Calculate the new discount value based on the rounded percentage
+            const currentPrice = parseFloat(products[step].price.slice(1)); // Remove the dollar sign and parse
+            const discountValue = ((roundedPercentageValue / 100) * currentPrice).toFixed(2);
+
+            // Use stored personalItem and socialPlatform for this step
+            const currentData = userData[step];
+
+            // Update the discount offer message with the rounded percentage and discount value
+            if (discountOfferElement) {
+                discountOfferElement.innerHTML = `You can get a ${roundedPercentageValue}% ($${discountValue}) discount on this purchase,<br> if you agree that your <span style="color:red">${currentData.personalItem}</span> might be shared on <span style="color:blue">${currentData.socialPlatform}</span>.`;
+            }
+
+            // Show negotiation buttons
+            agreeButton1.style.display = "inline-block";
+            disagreeButton1.style.display = "inline-block";
+
+            // Reset button event listeners
+            agreeButton1.onclick = null;
+            disagreeButton1.onclick = null;
+
+            // Set up event handlers for buttons
+            agreeButton1.onclick = function() {
+                agreeButton1.style.display = "none";
+                disagreeButton1.style.display = "none";
+                resolve(true); // User agreed
+            };
+
+            disagreeButton1.onclick = function() {
+                agreeButton1.style.display = "none";
+                disagreeButton1.style.display = "none";
+                resolve(false); // User disagreed
+            };
+        });
+    }
+
+    async function handleNegotiationPath() {
+        const initialOffer = 10; // Start at 10% discount
+        let userDecision = await promptNegotiation(initialOffer);
+
+        let bounds;
+        if (userDecision) {
+            bounds = await agree();
+        } else {
+            bounds = await disagree();
+        }
+
+        // Update the userData with rounded negotiation results
+        userData[step].b_lower = bounds.b_lower;
+        userData[step].b_upper = bounds.b_upper;
+        userData[step].avg = bounds.avg;
+
+        if (step < products.length - 1) {
+            step++;
+            randomShow();
+        } else {
+            displaySummary();
+        }
+    }
+
+    function randomShow() {
+        const productElement = document.getElementById("product");
+        const discountOfferElement = document.getElementById("discount-offer");
+        const agreeButton = document.getElementById("agree-button");
+        const disagreeButton = document.getElementById("disagree-button");
+
+        // Hide initial phase buttons
+        agreeButton.style.display = "none";
+        disagreeButton.style.display = "none";
+
+        // Show product and price, keep discount offer text with the same personal item and social platform
+        if (productElement) {
+            productElement.innerHTML = `
+                <img src="${products[step].image}" alt="${products[step].name}" height="200" width="200">
+                <h3>${products[step].name}</h3>
+                <h4>Price: ${products[step].price}</h4>
+            `;
+        } else {
+            console.error("Element with ID 'product' not found.");
+        }
+
+        // Store personal data for this product
+        const personalData = ["Email", "Phone number", "Bank account number", "Name", "Home address"];
+        const socialPlatforms = ["Twitter", "Facebook", "WhatsApp Groups"];
+        personalItem = personalData[Math.floor(Math.random() * personalData.length)];
+        socialPlatform = socialPlatforms[Math.floor(Math.random() * socialPlatforms.length)];
+
+        // Store initial decision and personal information
+        userData.push({
+            sell_item: products[step].name,
+            personalItem: personalItem,
+            socialPlatform: socialPlatform,
+        });
+
+        // Start negotiation for the current product
+        handleNegotiationPath();
+    }
+
+    function displaySummary() {
+        const summaryElement = document.getElementById('summary');
+        summaryElement.style.display = 'block';
+
+        const productElement = document.getElementById("product");
+        const discountOfferElement = document.getElementById("discount-offer");
+        const agreeButton = document.getElementById("agree-button");
+        const disagreeButton = document.getElementById("disagree-button");
+        const headlineElement = document.querySelector(".headline + h3");
+
+        productElement.style.display = "none";
+        discountOfferElement.style.display = "none";
+        agreeButton.style.display = "none";
+        disagreeButton.style.display = "none";
+        headlineElement.style.display = "none";
+
+        const table = document.createElement('table');
+        const thead = document.createElement('thead');
+        const tbody = document.createElement('tbody');
+
+        const headers = ['Sell Item', 'Social Platform', 'Personal Data Item', 'Lower Bound', 'Upper Bound', 'Average'];
+        const headerRow = document.createElement('tr');
+        headers.forEach(header => {
+            const th = document.createElement('th');
+            th.textContent = header;
+            headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+
+        userData.forEach(data => {
+            const row = document.createElement('tr');
+            const sellItemCell = document.createElement('td');
+            sellItemCell.textContent = data.sell_item;
+            row.appendChild(sellItemCell);
+
+            const socialPlatformCell = document.createElement('td');
+            socialPlatformCell.textContent = data.socialPlatform;
+            row.appendChild(socialPlatformCell);
+
+            const personalDataCell = document.createElement('td');
+            personalDataCell.textContent = data.personalItem;
+            row.appendChild(personalDataCell);
+
+            const lowerBoundCell = document.createElement('td');
+            lowerBoundCell.textContent = data.b_lower || 'N/A';
+            row.appendChild(lowerBoundCell);
+
+            const upperBoundCell = document.createElement('td');
+            upperBoundCell.textContent = data.b_upper || 'N/A';
+            row.appendChild(upperBoundCell);
+
+            const averageCell = document.createElement('td');
+            averageCell.textContent = data.avg || 'N/A';
+            row.appendChild(averageCell);
+
+            tbody.appendChild(row);
+        });
+
+        table.appendChild(thead);
+        table.appendChild(tbody);
+       // summaryElement.appendChild(table);
+
+        // Generate a random 5-digit number
+        const randomNumber = Math.floor(10000 + Math.random() * 90000);
+
+        // Create and display the thank you message with the random number
+        const thankYouMessage = document.createElement('p');
+        thankYouMessage.innerHTML = `Your confirmation number is ${randomNumber}. <br><br> Thank you for your participation.`;
+        thankYouMessage.style.marginTop = '20px';
+        thankYouMessage.style.fontWeight = 'bold';
+        summaryElement.appendChild(thankYouMessage);
+
+        // Send rounded data to the server using AJAX
+        userData.forEach(data => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', 'process_dataDuring.php', true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    console.log('Data sent successfully');
+                }
+            };
+            xhr.send(`sell_item=${data.sell_item}&socialPlatform=${data.socialPlatform}&personalItem=${data.personalItem}&b_lower=${data.b_lower}&b_upper=${data.b_upper}&avg=${data.avg}`);
+        });
+    }
+
+    // Initialize the product negotiation process
+    window.onload = function() {
+        randomShow();
+    };
+
+</script>
+</head>
+<body>
+<div class="container">
+    <div class="headline">
+        <img src="images/ARIELUlogo.gif" alt="ArielU Logo" style="height: 50px; margin-right: 10px;">
+        ArielU-Store
+    </div>
+    <h3>You are about to purchase the following item:</h3>
+    <center id="product"></center>
+
+    <h3 id="discount-offer"></h3>
+    <div id="negotiation-message" style="margin: 20px 0; font-weight: bold;"></div>
+    <button id="agree-button" type="button" class="button-agree">Agree</button>
+    <button id="disagree-button" type="button" class="button-disagree">Don't Agree</button>
+    <button id="agree-button1" style="display:none;" type="button" class="button-agree">Agree</button>
+    <button id="disagree-button1" style="display:none;" type="button" class="button-disagree">Don't Agree</button>
+
+    <div id="summary"></div>
+</div>
+</body>
+</html>
